@@ -1,0 +1,12 @@
+[package]
+name = "LP"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+alloy = { version = "0.4.2", features = ["full"] }
+tokio = {version = "1.40.0", features = ["full"] }
+tokio-tungstenite = "0.24.0"
+tungstenite = "0.24.0"
+futures-util = "0.3.31"
+zmq = "0.10.0"
