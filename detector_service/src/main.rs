@@ -7,6 +7,8 @@ use alloy::providers::network::primitives::BlockTransactionsKind::Full;
 use tokio_tungstenite::{accept_async, connect_async, tungstenite::Message};
 use futures_util::sink::SinkExt;
 use tokio::net::TcpListener;
+use zmq::{Context, PUB};
+
 
 sol!(
     #[sol(rpc)]
@@ -17,25 +19,24 @@ sol!(
 async fn main() {
     let rpc_url = env!("RPC_URL");
 
-    // Set up WebSocket server on localhost:9001
-    let ws_listener = TcpListener::bind("127.0.0.1:9001")
-        .await
-        .expect("Failed to bind WebSocket server");
+    let context = Context::new();
+    let publisher = context.socket(PUB).unwrap();
+    publisher.bind("tcp://*:5555").unwrap();
 
     let connected_clients: Arc<Mutex<Vec<tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>>>> = Arc::new(Mutex::new(Vec::new()));
 
-    let clients = connected_clients.clone();
-    tokio::spawn(async move {
-        while let Ok((stream, _)) = ws_listener.accept().await {
-            let ws_stream = accept_async(stream)
-                .await
-                .expect("Error during WebSocket handshake");
-
-            println!("New WebSocket connection established");
-
-            clients.lock().unwrap().push(ws_stream);
-        }
-    });
+    // let clients = connected_clients.clone();
+    // tokio::spawn(async move {
+    //     while let Ok((stream, _)) = ws_listener.accept().await {
+    //         let ws_stream = accept_async(stream)
+    //             .await
+    //             .expect("Error during WebSocket handshake");
+    //
+    //         println!("New WebSocket connection established");
+    //
+    //         clients.lock().unwrap().push(ws_stream);
+    //     }
+    // });
 
     let ws = WsConnect::new(rpc_url);
 
@@ -63,31 +64,9 @@ async fn main() {
                             let receipt = provider.get_transaction_receipt(tx_hash).await.unwrap().unwrap();
                             let contract_address = receipt.contract_address.unwrap();
 
-                            let msg = format!("New contract created: {:?}", contract_address);
 
-                            // Push the message to all connected clients
-                            let mut clients = connected_clients.lock().unwrap();
-
-                            // Create a new vector to store active clients
-                            let mut active_clients = Vec::new();
-
-                            for mut client in clients.drain(..) {
-                                let result = client.send(Message::Text(msg.clone())).await;
-
-                                match result {
-                                    Ok(_) => {
-                                        // If the message was sent successfully, keep the client in the list
-                                        active_clients.push(client);
-                                    }
-                                    Err(_) => {
-                                        // If there's an error (e.g., connection closed), print the error
-                                        println!("WebSocket connection closed");
-                                    }
-                                }
-                            }
-
-                            // Replace the original list with the active clients
-                            *clients = active_clients;
+                            // Publish the event to all connected subscribers
+                            publisher.send(contract_address.to_string().as_str(), 0).unwrap();
 
                         }
                         _ => {}

@@ -9,3 +9,4 @@ tokio = {version = "1.40.0", features = ["full"] }
 tokio-tungstenite = "0.24.0"
 tungstenite = "0.24.0"
 futures-util = "0.3.31"
+zmq = "0.10.0"
